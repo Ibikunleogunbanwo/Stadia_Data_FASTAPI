@@ -59,7 +59,7 @@ def add_stadium(stadium: Stadium, db: sqlite3.Connection = Depends(get_db)):
     except sqlite3.IntegrityError as e:
         raise HTTPException(400, detail="Stadium with thesame name alrady exists")
     stadium.id = cursor.lastrowid
-    return {"data":stadium, "message": "Stadium created successfully"}
+    return stadium
 
 
 
@@ -83,8 +83,42 @@ def get_stadium_by_id(stadium_id: int,db: sqlite3.Connection = Depends(get_db)):
 
 @app.get("/stadium_name/{stadium_name}", response_model=Stadium)
 def get_stadium_by_name(stadium_name: str,db: sqlite3.Connection = Depends(get_db)):
-    cursor = db.execute("SELECT * FROM stadia WHERE name = ?", (stadium_name,))
+    cursor = db.execute("SELECT * FROM stadia WHERE lower(name) = ?", (stadium_name.lower(),))
     row = cursor.fetchone()
     if not row:
         raise HTTPException(404, detail="Stadium not found")
     return Stadium(**row)
+
+
+
+@app.put("/stadium_by_id/{stadium_id}", response_model=Stadium)
+def update_stadium(stadium_id: int, data: Stadium, db: sqlite3.Connection = Depends(get_db)):
+    cursor = db.cursor()
+    cursor.execute ("select * from stadia where id = ?", (stadium_id,))
+    if not cursor.fetchone():
+        raise HTTPException(status_code=404, detail="stadium not found")
+    
+    cursor.execute("""
+                    UPDATE stadia
+                    SET name = ?, city = ?, club = ?, capacity = ?, open_year = ?
+                    where id =?
+                    """,
+                    (data.name, data.city, data.club, data.capacity, data.open_year, data.id)
+
+                    )
+    db.commit()
+    data.id = stadium_id
+    return data
+
+@app.delete("/stadium/{stadium_id}", status_code=204)
+def delete_stadium (stadium_id: int, db: sqlite3.Connection = Depends(get_db)):
+    cursor = db.cursor()
+    cursor.execute("select id from stadia where id =?", (stadium_id,))
+    if not cursor.fetchone():
+        return HTTPException(status_code=400, detail="stadium not found")
+    
+    cursor.execute("delete from stadia where id = ?", (stadium_id,))
+    db.commit()
+    return
+
+    
